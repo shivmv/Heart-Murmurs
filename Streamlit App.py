@@ -27,7 +27,7 @@ base_url = f"https://api.github.com/repos/{username}/{repository}"
 
 # Function to download file from GitHub
 def download_file_from_github(file_path):
-    response = requests.get(f"https://github.com/shivmv/Heart-Murmurs/blob/main/{file_path}")
+    response = requests.get(f"https://github.com/shivmv/Heart-Murmurs/blob/main/{model_path}")
     content = response.json()
     content_decoded = base64.b64decode(content['content']).decode('utf-8')
     return content_decoded
