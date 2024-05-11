@@ -27,13 +27,19 @@ def download_file_from_github(file_path):
     return content_decoded
 
 # Load thresholds
-thresholds_content = download_file_from_github("thresholds.json")
+thresholds_content = download_file_from_github("thresholds.txt")
 thresholds = json.loads(thresholds_content)
 
 # Get list of model URLs
-models_response = requests.get(f"{base_url}/contents/models")
-models_content = models_response.json()
-model_urls = [f"{base_url}/contents/models/{model['name']}" for model in models_content]
+model_paths = [
+    "Model_Abnormal.pth",
+    "Model_Absent.pth",
+    "Model_Normal.pth",
+    "Model_Present.pth"
+]
+
+# Download models
+model_urls = [f"{base_url}/contents/{model_path}" for model_path in model_paths]
 
 overall_certainty = {}
 
@@ -85,12 +91,12 @@ def run_murmur_analysis(input_file):
     patient_dataset, *_ = create_dataset(patient_audio_converted)
 
     certainty = {}
-    for model_url in model_urls:
-        model_content = download_file_from_github(model_url)
+    for model_path in model_paths:
+        model_content = download_file_from_github(model_path)
         model = torch.load(model_content, map_location=device)
         model = model.to(device)
         reconstructed, mismatch = predict(model, patient_dataset)
-        condition_name = model_url.split('/')[-1].split('.')[0]  # Extract condition name from URL
+        condition_name = model_path.split('/')[-1].split('.')[0]  # Extract condition name from URL
         certainty_value = 2**(-mismatch[0] / thresholds[condition_name])
         if condition_name in overall_certainty:
             overall_certainty[condition_name].append(certainty_value)
