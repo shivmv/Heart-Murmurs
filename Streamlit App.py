@@ -33,7 +33,7 @@ def download_file_from_github(file_path):
     return content_decoded
 
 # Load thresholds
-thresholds_content = download_file_from_github("thresholds.txt")
+thresholds_content = "https://github.com/shivmv/Heart-Murmurs/blob/main/thresholds.txt"
 thresholds = json.loads(thresholds_content)
 
 # Get list of model URLs
