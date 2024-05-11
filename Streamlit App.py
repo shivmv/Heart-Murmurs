@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import requests
+import base64
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,17 +24,17 @@ span = 1500
 # GitHub repository information
 username = "shivmv"
 repository = "Heart-Murmurs"
-base_url = f"https://api.github.com/repos/{username}/{repository}"
+base_url = f"https://github.com/{username}/{repository}/blob/main/"
 
 # Function to download file from GitHub
 def download_file_from_github(file_path):
-    response = requests.get(f"https://github.com/shivmv/Heart-Murmurs/blob/main/{model_path}")
-    content = response.json()
-    content_decoded = base64.b64decode(content['content']).decode('utf-8')
+    response = requests.get(f"{base_url}{file_path}")
+    content = response.content
+    content_decoded = base64.b64decode(content).decode('utf-8')
     return content_decoded
 
 # Load thresholds
-thresholds_content = "https://github.com/shivmv/Heart-Murmurs/blob/main/thresholds.txt"
+thresholds_content = download_file_from_github("thresholds.txt")
 thresholds = json.loads(thresholds_content)
 
 # Get list of model URLs
@@ -43,11 +44,6 @@ model_paths = [
     "Model_Normal.pth",
     "Model_Present.pth"
 ]
-
-# Download models
-model_urls = [f"{base_url}/contents/{model_path}" for model_path in model_paths]
-
-overall_certainty = {}
 
 # Convert function
 def convert(patient_input, audio_foldername=None):
@@ -96,7 +92,7 @@ def run_murmur_analysis(input_file):
     patient_audio_converted = convert(patient_audio_data, folder)
     patient_dataset, *_ = create_dataset(patient_audio_converted)
 
-    certainty = {}
+    overall_certainty = {}
     for model_path in model_paths:
         model_content = download_file_from_github(model_path)
         model = torch.load(model_content, map_location=device)
@@ -104,30 +100,24 @@ def run_murmur_analysis(input_file):
         reconstructed, mismatch = predict(model, patient_dataset)
         condition_name = model_path.split('/')[-1].split('.')[0]  # Extract condition name from URL
         certainty_value = 2**(-mismatch[0] / thresholds[condition_name])
-        if condition_name in overall_certainty:
-            overall_certainty[condition_name].append(certainty_value)
-        else:
-            overall_certainty[condition_name] = [certainty_value]
+        overall_certainty[condition_name] = certainty_value
 
-    if overall_certainty:
-        pathological_certainty = sum(overall_certainty.get("Pathological", []))
-        not_pathological_certainty = sum(overall_certainty.get("Not Pathological", []))
-        present_certainty = sum(overall_certainty.get("Present", []))
-        not_present_certainty = sum(overall_certainty.get("Not Present", []))
+    pathological_certainty = sum(overall_certainty.get("Pathological", 0))
+    not_pathological_certainty = sum(overall_certainty.get("Not Pathological", 0))
+    present_certainty = sum(overall_certainty.get("Present", 0))
+    not_present_certainty = sum(overall_certainty.get("Not Present", 0))
 
-        is_pathological = pathological_certainty > not_pathological_certainty
-        is_present = present_certainty > not_present_certainty
+    is_pathological = pathological_certainty > not_pathological_certainty
+    is_present = present_certainty > not_present_certainty
 
-        result = custom_messages.get(
-            (
-                f"{'Pathological' if is_pathological else 'Not Pathological'}_"
-                f"{'Present' if is_present else 'Not Present'}"
-            ),
-            "No result found.")
+    result = custom_messages.get(
+        (
+            f"{'Pathological' if is_pathological else 'Not Pathological'}_"
+            f"{'Present' if is_present else 'Not Present'}"
+        ),
+        "No result found.")
 
-        st.write(result)
-    else:
-        st.write("No models were evaluated.")
+    st.write(result)
 
 st.title("Heart Murmur Analysis")
 
@@ -138,4 +128,3 @@ if input_file is not None:
     run_murmur_analysis(input_file)
 else:
     st.write("Please upload a WAV file to analyze.")
-
